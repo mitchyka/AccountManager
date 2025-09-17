@@ -1,0 +1,52 @@
+```typescript
+import { defineStore } from 'pinia';
+
+interface Account {
+  id: number;
+  labels: { text: string }[];
+  type: 'LDAP' | 'Local';
+  login: string;
+  password: string | null;
+}
+
+export const useAccountsStore = defineStore('accounts', {
+  state: () => {
+    let accounts: Account[] = [];
+    let nextId = 1;
+    try {
+      const saved = localStorage.getItem('accounts');
+      if (saved) {
+        accounts = JSON.parse(saved);
+        nextId = accounts.length ? Math.max(...accounts.map(a => a.id)) + 1 : 1;
+      }
+    } catch (error) {
+      console.error('Ошибка загрузки аккаунтов:', error);
+      accounts = []; // Fallback
+    }
+    return { accounts, nextId };
+  },
+  actions: {
+    addAccount() {
+      this.accounts.push({ id: this.nextId++, labels: [], type: 'LDAP', login: '', password: null });
+      this.saveToLocal();
+    },
+    removeAccount(id: number) {
+      this.accounts = this.accounts.filter(a => a.id !== id);
+      this.saveToLocal();
+    },
+    updateAccount(updated: Account) {
+      const index = this.accounts.findIndex(a => a.id === updated.id);
+      if (index !== -1) {
+        this.accounts[index] = { ...updated };
+        this.saveToLocal();
+      }
+    },
+    saveToLocal() {
+      try {
+        localStorage.setItem('accounts', JSON.stringify(this.accounts));
+      } catch (error) {
+        console.error('Ошибка сохранения аккаунтов:', error);
+      }
+    }
+  }
+});
