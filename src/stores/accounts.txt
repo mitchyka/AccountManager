@@ -1,52 +1,76 @@
-```typescript
 import { defineStore } from 'pinia';
+import type { Account, AccountType, TagItem } from '@/types';
 
-interface Account {
-  id: number;
-  labels: { text: string }[];
-  type: 'LDAP' | 'Local';
-  login: string;
-  password: string | null;
-}
+const STORAGE_KEY = 'accounts';
 
-export const useAccountsStore = defineStore('accounts', {
-  state: () => {
-    let accounts: Account[] = [];
-    let nextId = 1;
-    try {
-      const saved = localStorage.getItem('accounts');
-      if (saved) {
-        accounts = JSON.parse(saved);
-        nextId = accounts.length ? Math.max(...accounts.map(a => a.id)) + 1 : 1;
-      }
-    } catch (error) {
-      console.error('Ошибка загрузки аккаунтов:', error);
-      accounts = []; // Fallback
-    }
-    return { accounts, nextId };
+export const useAccountStore = defineStore('accounts', {
+  state: () => ({
+    accounts: [] as Account[],
+  }),
+
+  getters: {
+    getAccountById: (state) => (id: string) => {
+      return state.accounts.find(account => account.id === id);
+    },
   },
+
   actions: {
+    loadAccounts() {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        try {
+          this.accounts = JSON.parse(stored);
+        } catch (e) {
+          console.error('Failed to parse stored accounts:', e);
+          this.accounts = [];
+        }
+      }
+    },
+
+    saveToStorage() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(this.accounts));
+    },
+
     addAccount() {
-      this.accounts.push({ id: this.nextId++, labels: [], type: 'LDAP', login: '', password: null });
-      this.saveToLocal();
+      const newAccount: Account = {
+        id: crypto.randomUUID(),
+        tags: [],
+        type: 'Локальная',
+        login: '',
+        password: '',
+      };
+      this.accounts.push(newAccount);
+      this.saveToStorage();
+      return newAccount.id;
     },
-    removeAccount(id: number) {
-      this.accounts = this.accounts.filter(a => a.id !== id);
-      this.saveToLocal();
-    },
-    updateAccount(updated: Account) {
-      const index = this.accounts.findIndex(a => a.id === updated.id);
+
+    updateAccount(id: string, updates: Partial<Account>) {
+      const index = this.accounts.findIndex(acc => acc.id === id);
       if (index !== -1) {
-        this.accounts[index] = { ...updated };
-        this.saveToLocal();
+        this.accounts[index] = { ...this.accounts[index], ...updates };
+        this.saveToStorage();
       }
     },
-    saveToLocal() {
-      try {
-        localStorage.setItem('accounts', JSON.stringify(this.accounts));
-      } catch (error) {
-        console.error('Ошибка сохранения аккаунтов:', error);
+
+    deleteAccount(id: string) {
+      const index = this.accounts.findIndex(acc => acc.id === id);
+      if (index !== -1) {
+        this.accounts.splice(index, 1);
+        this.saveToStorage();
       }
-    }
-  }
+    },
+
+    parseTags(tagsString: string): TagItem[] {
+      if (!tagsString.trim()) return [];
+      return tagsString
+        .split(';')
+        .map(tag => tag.trim())
+        .filter(tag => tag.length > 0)
+        .map(tag => ({ text: tag }));
+    },
+
+    tagsToString(tags: TagItem[]): string {
+      return tags.map(tag => tag.text).join('; ');
+    },
+  },
 });
