@@ -1,0 +1,76 @@
+import { defineStore } from 'pinia';
+import type { Account, AccountType, TagItem } from '@/types';
+
+const STORAGE_KEY = 'accounts';
+
+export const useAccountStore = defineStore('accounts', {
+  state: () => ({
+    accounts: [] as Account[],
+  }),
+
+  getters: {
+    getAccountById: (state) => (id: string) => {
+      return state.accounts.find(account => account.id === id);
+    },
+  },
+
+  actions: {
+    loadAccounts() {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        try {
+          this.accounts = JSON.parse(stored);
+        } catch (e) {
+          console.error('Failed to parse stored accounts:', e);
+          this.accounts = [];
+        }
+      }
+    },
+
+    saveToStorage() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(this.accounts));
+    },
+
+    addAccount() {
+      const newAccount: Account = {
+        id: crypto.randomUUID(),
+        tags: [],
+        type: 'Локальная',
+        login: '',
+        password: '',
+      };
+      this.accounts.push(newAccount);
+      this.saveToStorage();
+      return newAccount.id;
+    },
+
+    updateAccount(id: string, updates: Partial<Account>) {
+      const index = this.accounts.findIndex(acc => acc.id === id);
+      if (index !== -1) {
+        this.accounts[index] = { ...this.accounts[index], ...updates };
+        this.saveToStorage();
+      }
+    },
+
+    deleteAccount(id: string) {
+      const index = this.accounts.findIndex(acc => acc.id === id);
+      if (index !== -1) {
+        this.accounts.splice(index, 1);
+        this.saveToStorage();
+      }
+    },
+
+    parseTags(tagsString: string): TagItem[] {
+      if (!tagsString.trim()) return [];
+      return tagsString
+        .split(';')
+        .map(tag => tag.trim())
+        .filter(tag => tag.length > 0)
+        .map(tag => ({ text: tag }));
+    },
+
+    tagsToString(tags: TagItem[]): string {
+      return tags.map(tag => tag.text).join('; ');
+    },
+  },
+});
